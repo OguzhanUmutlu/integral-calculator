@@ -13,7 +13,7 @@
 </select><br><br>
     <div class="calc" onclick="calc()">Calculate</div>
     <br>
-    <i style="user-select: text">Samples: <br>gamma(n): <b></b> ** (n - 1) * e ** (-<b></b>)<br>n!: <b></b> ** n * e ** (-<b></b>)</i>
+    <i>Samples: <br>gamma(n): <b></b> ** (n - 1) * e ** (-<b></b>)<br>n!: <b></b> ** n * e ** (-<b></b>)</i>
 </div>
 <script>
     const workers = {};
@@ -150,5 +150,9 @@
         left: 50%;
         translate: -50%;
         top: 10px;
+    }
+
+    i, b {
+        user-select: text;
     }
 </style>
