@@ -1,0 +1,154 @@
+<div class="loading" hidden>Calculating... <span id="loading"></span></div>
+<div class="container">
+    Find the integral of<br>
+    <textarea placeholder="JavaScript code goes here...">x + 3</textarea><br><br>
+    From <input type="number" id="from" value="0"> to <input type="number" id="to" value="1"><br><br>
+    With the respect to <input id="respect" value="x"><br><br>
+    With the d<b></b>
+    of <input value="0.0001" type="number" id="dx"><br><br>
+    With the method <select id="method">
+    <option value="sync">Sync (Fastest)</option>
+    <option value="async">Async (Slowest)</option>
+    <option value="worker">Worker (Middle)</option>
+</select><br><br>
+    <div class="calc" onclick="calc()">Calculate</div>
+    <br>
+    <i style="user-select: text">Samples: <br>gamma(n): <b></b> ** (n - 1) * e ** (-<b></b>)<br>n!: <b></b> ** n * e ** (-<b></b>)</i>
+</div>
+<script>
+    const workers = {};
+    let _id = 0;
+    const worker = new Worker("./integral.js");
+    worker.onmessage = ev => {
+        if (workers[ev.data.id]) workers[ev.data.id](ev.data.r);
+    };
+    worker.onmessageerror = () => alert("An error occurred");
+    worker.onerror = () => alert("An error occurred");
+    const numberFix = n => Math.round(n * 10000000) / 10000000;
+    const loadingDiv = document.querySelector(".loading");
+    const loadingText = document.querySelector("#loading");
+    const calcBtn = document.querySelector(".calc");
+    const integralSync = (f, a, b, dx, cb = r => r) => {
+        const negate = a > b ? -1 : 1;
+        if (a > b) {
+            const oA = a;
+            a = b;
+            b = oA;
+        }
+        let r = 0;
+        for (let x = a; x < b; x += dx) {
+            r += f(x) * dx;
+        }
+        return r * negate;
+    };
+    const integral = async (f, a, b, dx, cb = r => r) => {
+        const negate = a > b ? -1 : 1;
+        if (a > b) {
+            const oA = a;
+            a = b;
+            b = oA;
+        }
+        return await new Promise(k => {
+            let r = 0;
+            let x = a;
+            const interval = setInterval(() => {
+                if (x < b) {
+                    const rep = (b - x) / dx > 10000 ? 10000 : (b - x) / dx;
+                    for (let i = 0; i < rep; i++) {
+                        r += f(x) * dx;
+                        x += dx;
+                    }
+                    cb(x);
+                } else {
+                    clearInterval(interval);
+                    k(r * negate);
+                }
+            });
+        });
+    };
+    const integralWorker = async (f, a, b, dx, cb = r => r) => {
+        const id = _id++;
+        worker.postMessage({id, a, b, dx, f: f.toString()});
+        return await new Promise(k => workers[id] = r => k(r));
+    };
+    const calc = async () => {
+        const e = l => document.querySelector(l);
+        const a = e("#from").value * 1;
+        const b = e("#to").value * 1;
+        const dx = e("#dx").value * 1;
+        const method = e("#method").value;
+        const respect = e("#respect").value;
+        const code = e("textarea").value;
+        try {
+            const t = performance.now();
+            if (respect.length !== 1 || !/[a-zA-Z]/.test(respect)) return alert("Respect should be a letter.");
+            if (!dx || dx <= 0) return alert("Too small d" + respect + "!");
+            loadingDiv.hidden = false;
+            calcBtn.hidden = true;
+            const h = "e,E;pi,PI;ln,log;log,log10".split(";").map(i => `const ${i.split(",")[0]}=Math.${i.split(",")[1]};`).join("");
+            const result = numberFix(await ({
+                async: integral,
+                sync: integralSync,
+                worker: integralWorker
+            }[method](eval(h + respect + " => " + code), a, b, dx, x => loadingText.innerHTML = Math.floor((x - a) / dx) + "/" + (b - a) / dx)));
+            alert("Calculated in " + (performance.now() - t) + "ms\n\nAnswer: " + result);
+            loadingDiv.hidden = true;
+            calcBtn.hidden = false;
+        } catch (e) {
+            loadingDiv.hidden = true;
+            calcBtn.hidden = false;
+            return alert(e);
+        }
+    };
+    const inputs = document.querySelectorAll("input");
+    const dummyCanvas = document.createElement("canvas");
+    const dummyCtx = dummyCanvas.getContext("2d");
+    dummyCtx.font = "16px Arial";
+    setInterval(() => {
+        inputs.forEach(input => input.style.width = dummyCtx.measureText(input.value).width + 32 + "px");
+        document.querySelectorAll("b").forEach(i => i.innerHTML = document.querySelector("#respect").value);
+    });
+</script>
+<style>
+    * {
+        background-color: #36393F;
+        color: white;
+        font-family: Arial, serif;
+        user-select: none;
+        font-size: 16px;
+    }
+
+    textarea, input {
+        outline: none;
+    }
+
+    .container {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        translate: -50% -50%;
+        width: fit-content;
+        height: fit-content;
+        text-align: center;
+    }
+
+    .calc {
+        border-radius: 5px;
+        background-color: #90959f;
+        padding: 5px;
+        cursor: pointer;
+        transition: filter .2s, scale .2s;
+    }
+
+    .calc:hover {
+        scale: 1.05;
+        filter: drop-shadow(0px 0px 10px #54d2c6);
+    }
+
+    .loading {
+        position: absolute;
+        left: 50%;
+        translate: -50%;
+        top: 10px;
+    }
+</style>
